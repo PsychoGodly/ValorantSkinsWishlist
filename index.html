@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Valorant Skin Wishlist</title>
+  <style>
+    body {
+      background-color: #0f0f0f;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #ff4655;
+    }
+    .skin-card, .wishlist-item {
+      background: #1a1a1a;
+      border-radius: 10px;
+      padding: 10px;
+      margin: 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .skin-card img, .wishlist-item img {
+      width: 100px;
+      height: auto;
+      border-radius: 8px;
+    }
+    .button {
+      background-color: #ff4655;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .button-alt {
+      background-color: #333;
+    }
+    input, select {
+      padding: 6px;
+      margin-right: 10px;
+      background: #1a1a1a;
+      color: white;
+      border: 1px solid #333;
+      border-radius: 5px;
+    }
+    .filters, .wishlist {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Valorant Skin Wishlist</h1>
+
+  <div class="filters">
+    <input id="search" placeholder="Search skins..." />
+    <select id="gunFilter">
+      <option value="">All Guns</option>
+      <option value="vandal">Vandal</option>
+      <option value="phantom">Phantom</option>
+      <option value="sheriff">Sheriff</option>
+    </select>
+    <select id="editionFilter">
+      <option value="">All Editions</option>
+      <option value="exclusive">Exclusive</option>
+      <option value="deluxe">Deluxe</option>
+      <option value="premium">Premium</option>
+    </select>
+  </div>
+
+  <div id="gallery"></div>
+
+  <div class="wishlist">
+    <h2>My Wishlist</h2>
+    <div id="wishlist"></div>
+  </div>
+
+  <script>
+    const API_URL = 'https://valorant-api.com/v1/weapons/skins';
+    const gallery = document.getElementById('gallery');
+    const wishlistContainer = document.getElementById('wishlist');
+    const searchInput = document.getElementById('search');
+    const gunFilter = document.getElementById('gunFilter');
+    const editionFilter = document.getElementById('editionFilter');
+
+    let allSkins = [];
+    let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
+
+    function saveWishlist() {
+      localStorage.setItem('wishlist', JSON.stringify(wishlist));
+      renderWishlist();
+    }
+
+    function addToWishlist(skin) {
+      if (!wishlist.find(w => w.uuid === skin.uuid)) {
+        wishlist.push({ ...skin, purchased: false });
+        saveWishlist();
+      }
+    }
+
+    function removeFromWishlist(uuid) {
+      wishlist = wishlist.filter(s => s.uuid !== uuid);
+      saveWishlist();
+    }
+
+    function togglePurchased(uuid) {
+      wishlist = wishlist.map(s => s.uuid === uuid ? { ...s, purchased: !s.purchased } : s);
+      saveWishlist();
+    }
+
+    function moveUp(index) {
+      if (index > 0) {
+        [wishlist[index - 1], wishlist[index]] = [wishlist[index], wishlist[index - 1]];
+        saveWishlist();
+      }
+    }
+
+    function moveDown(index) {
+      if (index < wishlist.length - 1) {
+        [wishlist[index + 1], wishlist[index]] = [wishlist[index], wishlist[index + 1]];
+        saveWishlist();
+      }
+    }
+
+    function renderWishlist() {
+      wishlistContainer.innerHTML = '';
+      wishlist.forEach((skin, i) => {
+        const item = document.createElement('div');
+        item.className = 'wishlist-item';
+        item.innerHTML = `
+          <div style="display: flex; gap: 10px; align-items: center">
+            <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
+            <div>
+              <strong>${skin.displayName}</strong><br/>
+              Priority #${i + 1}<br/>
+              ${skin.purchased ? '<em>(Purchased)</em>' : ''}
+            </div>
+          </div>
+          <div>
+            <button class="button" onclick="togglePurchased('${skin.uuid}')">✔</button>
+            <button class="button-alt button" onclick="removeFromWishlist('${skin.uuid}')">🗑</button>
+            <button class="button-alt button" onclick="moveUp(${i})">↑</button>
+            <button class="button-alt button" onclick="moveDown(${i})">↓</button>
+          </div>
+        `;
+        wishlistContainer.appendChild(item);
+      });
+    }
+
+    function renderGallery() {
+      const search = searchInput.value.toLowerCase();
+      const gun = gunFilter.value;
+      const edition = editionFilter.value;
+
+      gallery.innerHTML = '';
+      allSkins
+        .filter(skin => !skin.displayName.includes('Random'))
+        .filter(skin => skin.displayName.toLowerCase().includes(search))
+        .filter(skin => gun ? skin.displayName.toLowerCase().includes(gun) : true)
+        .filter(skin => edition ? skin.displayName.toLowerCase().includes(edition) : true)
+        .forEach(skin => {
+          const card = document.createElement('div');
+          card.className = 'skin-card';
+          card.innerHTML = `
+            <div>
+              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
+              ${skin.displayName}
+            </div>
+            <button class="button" onclick='addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>+ Wishlist</button>
+          `;
+          gallery.appendChild(card);
+        });
+    }
+
+    fetch(API_URL)
+      .then(res => res.json())
+      .then(data => {
+        allSkins = data.data;
+        renderGallery();
+        renderWishlist();
+      });
+
+    searchInput.addEventListener('input', renderGallery);
+    gunFilter.addEventListener('change', renderGallery);
+    editionFilter.addEventListener('change', renderGallery);
+
+    window.addToWishlist = addToWishlist;
+    window.removeFromWishlist = removeFromWishlist;
+    window.togglePurchased = togglePurchased;
+    window.moveUp = moveUp;
+    window.moveDown = moveDown;
+  </script>
+</body>
+</html>
