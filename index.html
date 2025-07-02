@@ -37,20 +37,34 @@
     .tab.active {
       display: block;
     }
+
     .skin-card, .wishlist-item {
       background: #1a1a1a;
       border-radius: 10px;
       padding: 10px;
-      margin: 10px 0;
+      margin: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
+
+    .grid .skin-card {
+      flex-direction: column;
+      text-align: center;
+    }
+
     .skin-card img, .wishlist-item img {
-      width: 100px;
-      height: auto;
       border-radius: 8px;
     }
+
+    .grid-size-small .skin-card img { width: 80px; }
+    .grid-size-medium .skin-card img { width: 120px; }
+    .grid-size-large .skin-card img { width: 160px; }
+
+    .wishlist-item img {
+      width: 100px;
+    }
+
     .button {
       background-color: #ff4655;
       color: white;
@@ -60,9 +74,7 @@
       cursor: pointer;
       margin-left: 5px;
     }
-    .button.green {
-      background-color: green;
-    }
+    .button.green { background-color: green; }
     .button-owned {
       background-color: #1b8b4c;
       color: white;
@@ -72,12 +84,9 @@
       cursor: pointer;
       margin-left: 5px;
     }
-    .button-owned.green {
-      background-color: #4caf50;
-    }
-    .button-alt {
-      background-color: #333;
-    }
+    .button-owned.green { background-color: #4caf50; }
+    .button-alt { background-color: #333; }
+
     input, select {
       padding: 6px;
       margin-right: 10px;
@@ -93,6 +102,15 @@
       cursor: move;
       margin-right: 10px;
     }
+
+    .view-controls {
+      margin: 10px 0;
+    }
+
+    .grid-container {
+      display: flex;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -103,19 +121,33 @@
     <button onclick="showTab(2)">Collection</button>
   </nav>
 
+  <!-- View Controls -->
+  <div class="view-controls" style="text-align:center;">
+    <label for="viewMode">View:</label>
+    <select id="viewMode" onchange="changeViewMode()">
+      <option value="list">List</option>
+      <option value="grid">Grid</option>
+    </select>
+    <label for="gridSize">Grid Size:</label>
+    <select id="gridSize" onchange="changeGridSize()" disabled>
+      <option value="small">Small</option>
+      <option value="medium" selected>Medium</option>
+      <option value="large">Large</option>
+    </select>
+  </div>
+
   <!-- Tab 0: Skins -->
   <div id="tab0" class="tab active">
     <div class="filters">
       <input id="search" placeholder="Search skins..." />
       <select id="gunFilter"></select>
-      <!-- Removed editionFilter -->
       <select id="ownershipFilter">
         <option value="all">All</option>
         <option value="owned">Owned</option>
         <option value="unowned">Unowned</option>
       </select>
     </div>
-    <div id="gallery"></div>
+    <div id="gallery" class="gallery"></div>
   </div>
 
   <!-- Tab 1: Wishlist -->
@@ -123,7 +155,6 @@
     <div class="filters">
       <input id="search2" placeholder="Search wishlist..." />
       <select id="gunFilter2"></select>
-      <!-- Removed editionFilter2 -->
     </div>
     <h2>My Wishlist (Drag to Reorder)</h2>
     <ul id="wishlist" style="list-style:none; padding:0;"></ul>
@@ -134,7 +165,6 @@
     <div class="filters">
       <input id="search3" placeholder="Search collection..." />
       <select id="gunFilter3"></select>
-      <!-- Removed editionFilter3 -->
     </div>
     <h2>Owned Skins</h2>
     <ul id="collectionList" style="list-style:none; padding:0;"></ul>
@@ -154,19 +184,14 @@
 
     const filters = {
       guns: ["All", "Classic", "Shorty", "Frenzy", "Ghost", "Sheriff", "Stinger", "Spectre", "Bucky", "Judge", "Bulldog", "Guardian", "Phantom", "Vandal", "Marshal", "Operator", "Ares", "Odin", "Knife"]
-      // Removed editions array entirely
     };
 
     function populateFilters() {
-      const gunFilter = document.getElementById('gunFilter');
-      const gunFilter2 = document.getElementById('gunFilter2');
-      const gunFilter3 = document.getElementById('gunFilter3');
-      // Removed editionFilter and related elements
-
       filters.guns.forEach(gun => {
-        gunFilter.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
-        gunFilter2.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
-        gunFilter3.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+        ['gunFilter', 'gunFilter2', 'gunFilter3'].forEach(id => {
+          const select = document.getElementById(id);
+          select.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+        });
       });
     }
 
@@ -212,19 +237,16 @@
         owned.push(skin);
       } else {
         owned.splice(index, 1);
-        // Unmark purchased in wishlist if skin removed from owned
         wishlist = wishlist.map(s => s.uuid === skin.uuid ? { ...s, purchased: false } : s);
         saveWishlist();
       }
       saveOwned();
-      renderGallery();
     }
 
     function removeFromOwned(uuid) {
       const index = owned.findIndex(s => s.uuid === uuid);
       if (index !== -1) {
         owned.splice(index, 1);
-        // Unmark purchased in wishlist
         wishlist = wishlist.map(s => s.uuid === uuid ? { ...s, purchased: false } : s);
         saveWishlist();
         saveOwned();
@@ -234,13 +256,12 @@
     function renderWishlist() {
       const search = document.getElementById('search2').value.toLowerCase();
       const gun = document.getElementById('gunFilter2').value;
-      // Removed edition filter
 
       wishlistContainer.innerHTML = '';
       wishlist
         .filter(s => s.displayName.toLowerCase().includes(search))
         .filter(s => gun === 'all' || !gun ? true : s.displayName.toLowerCase().includes(gun))
-        .forEach((skin) => {
+        .forEach(skin => {
           const item = document.createElement('li');
           item.className = 'wishlist-item';
           item.setAttribute('data-id', skin.uuid);
@@ -277,8 +298,6 @@
     function renderCollection() {
       const search = document.getElementById('search3').value.toLowerCase();
       const gun = document.getElementById('gunFilter3').value;
-      // Removed edition filter
-
       collectionList.innerHTML = '';
       owned
         .filter(skin => skin.displayName.toLowerCase().includes(search))
@@ -302,10 +321,11 @@
     function renderGallery() {
       const search = document.getElementById('search').value.toLowerCase();
       const gun = document.getElementById('gunFilter').value;
-      // Removed edition filter
       const ownership = document.getElementById('ownershipFilter').value;
 
       gallery.innerHTML = '';
+      gallery.className = `gallery ${viewMode === 'grid' ? 'grid grid-container grid-size-' + gridSize : ''}`;
+
       allSkins
         .filter(skin => !skin.displayName.includes('Random'))
         .filter(skin => skin.displayName.toLowerCase().includes(search))
@@ -347,7 +367,21 @@
       });
     }
 
-    // Removed editionFilter event listeners
+    // View mode logic
+    let viewMode = 'list';
+    let gridSize = 'medium';
+
+    function changeViewMode() {
+      viewMode = document.getElementById('viewMode').value;
+      document.getElementById('gridSize').disabled = (viewMode !== 'grid');
+      renderGallery();
+    }
+
+    function changeGridSize() {
+      gridSize = document.getElementById('gridSize').value;
+      renderGallery();
+    }
+
     document.getElementById('search').addEventListener('input', renderGallery);
     document.getElementById('gunFilter').addEventListener('change', renderGallery);
     document.getElementById('ownershipFilter').addEventListener('change', renderGallery);
