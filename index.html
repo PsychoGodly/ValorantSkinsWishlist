@@ -58,6 +58,7 @@
       padding: 6px 10px;
       border-radius: 5px;
       cursor: pointer;
+      margin-left: 5px;
     }
     .button.green {
       background-color: green;
@@ -127,6 +128,11 @@
 
   <!-- Tab 2: Collection -->
   <div id="tab2" class="tab">
+    <div class="filters">
+      <input id="search3" placeholder="Search collection..." />
+      <select id="gunFilter3"></select>
+      <select id="editionFilter3"></select>
+    </div>
     <h2>Owned Skins</h2>
     <ul id="collectionList" style="list-style:none; padding:0;"></ul>
   </div>
@@ -151,16 +157,20 @@
     function populateFilters() {
       const gunFilter = document.getElementById('gunFilter');
       const gunFilter2 = document.getElementById('gunFilter2');
+      const gunFilter3 = document.getElementById('gunFilter3');
       const editionFilter = document.getElementById('editionFilter');
       const editionFilter2 = document.getElementById('editionFilter2');
+      const editionFilter3 = document.getElementById('editionFilter3');
 
       filters.guns.forEach(gun => {
         gunFilter.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
         gunFilter2.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+        gunFilter3.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
       });
       filters.editions.forEach(ed => {
         editionFilter.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
         editionFilter2.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
+        editionFilter3.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
       });
     }
 
@@ -201,10 +211,22 @@
     }
 
     function markAsOwned(skin) {
-      if (!owned.find(o => o.uuid === skin.uuid)) {
+      const index = owned.findIndex(o => o.uuid === skin.uuid);
+      if (index === -1) {
+        // Add skin to owned
         owned.push(skin);
-        saveOwned();
+      } else {
+        // Remove skin from owned
+        owned.splice(index, 1);
       }
+      saveOwned();
+      renderGallery(); // To update button text
+    }
+
+    function removeFromOwned(uuid) {
+      owned = owned.filter(s => s.uuid !== uuid);
+      saveOwned();
+      renderGallery();
     }
 
     function renderWishlist() {
@@ -217,14 +239,14 @@
         .filter(s => s.displayName.toLowerCase().includes(search))
         .filter(s => gun === 'all' || !gun ? true : s.displayName.toLowerCase().includes(gun))
         .filter(s => edition === 'all' || !edition ? true : (s.contentTierUuid && s.contentTierUuid.toLowerCase().includes(edition)))
-        .forEach((skin, i) => {
+        .forEach((skin) => {
           const item = document.createElement('li');
           item.className = 'wishlist-item';
           item.setAttribute('data-id', skin.uuid);
           item.innerHTML = `
             <div style="display: flex; gap: 10px; align-items: center">
               <span class="drag-handle">☰</span>
-              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
+              <img src="${skin.displayIcon || (skin.chromas && skin.chromas[0]?.fullRender) || ''}" />
               <div>
                 <strong>${skin.displayName}</strong><br/>
                 ${skin.purchased ? '<em>(Purchased)</em>' : ''}
@@ -252,18 +274,29 @@
     }
 
     function renderCollection() {
+      const search = document.getElementById('search3').value.toLowerCase();
+      const gun = document.getElementById('gunFilter3').value;
+      const edition = document.getElementById('editionFilter3').value;
+
       collectionList.innerHTML = '';
-      owned.forEach(skin => {
-        const li = document.createElement('li');
-        li.className = 'skin-card';
-        li.innerHTML = `
-          <div>
-            <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
-            ${skin.displayName}
-          </div>
-        `;
-        collectionList.appendChild(li);
-      });
+      owned
+        .filter(skin => skin.displayName.toLowerCase().includes(search))
+        .filter(skin => gun === 'all' || !gun ? true : skin.displayName.toLowerCase().includes(gun))
+        .filter(skin => edition === 'all' || !edition ? true : (skin.contentTierUuid && skin.contentTierUuid.toLowerCase().includes(edition)))
+        .forEach(skin => {
+          const li = document.createElement('li');
+          li.className = 'skin-card';
+          li.innerHTML = `
+            <div>
+              <img src="${skin.displayIcon || (skin.chromas && skin.chromas[0]?.fullRender) || ''}" /><br/>
+              ${skin.displayName}
+            </div>
+            <div>
+              <button class="button-alt button" onclick="removeFromOwned('${skin.uuid}')">Remove</button>
+            </div>
+          `;
+          collectionList.appendChild(li);
+        });
     }
 
     function renderGallery() {
@@ -288,14 +321,19 @@
           const isOwned = owned.find(o => o.uuid === skin.uuid);
           const card = document.createElement('div');
           card.className = 'skin-card';
+
+          // Owned button text and color toggle
+          const ownedButtonText = isOwned ? 'Owned' : 'Mark Owned';
+          const ownedButtonClass = isOwned ? 'green' : '';
+
           card.innerHTML = `
             <div>
-              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
+              <img src="${skin.displayIcon || (skin.chromas && skin.chromas[0]?.fullRender) || ''}" /><br/>
               ${skin.displayName}
             </div>
             <div>
               <button class="button ${isInWishlist ? 'green' : ''}" onclick='${isInWishlist ? `removeFromWishlist("${skin.uuid}")` : `addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})`}'>${isInWishlist ? '✔ Added' : '+ Wishlist'}</button>
-              <button class="button-owned" onclick='markAsOwned(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>🎯 Mark Owned</button>
+              <button class="button-owned ${ownedButtonClass}" onclick='markAsOwned(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>${ownedButtonText}</button>
             </div>
           `;
           gallery.appendChild(card);
@@ -320,6 +358,10 @@
     document.getElementById('gunFilter2').addEventListener('change', renderWishlist);
     document.getElementById('editionFilter2').addEventListener('change', renderWishlist);
 
+    document.getElementById('search3').addEventListener('input', renderCollection);
+    document.getElementById('gunFilter3').addEventListener('change', renderCollection);
+    document.getElementById('editionFilter3').addEventListener('change', renderCollection);
+
     fetch(API_SKINS)
       .then(res => res.json())
       .then(data => {
@@ -334,6 +376,7 @@
     window.removeFromWishlist = removeFromWishlist;
     window.togglePurchased = togglePurchased;
     window.markAsOwned = markAsOwned;
+    window.removeFromOwned = removeFromOwned;
     window.showTab = showTab;
   </script>
 </body>
