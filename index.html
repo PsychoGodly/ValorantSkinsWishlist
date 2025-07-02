@@ -18,6 +18,7 @@
       display: flex;
       background-color: #1a1a1a;
       justify-content: center;
+      flex-wrap: wrap;
     }
     nav button {
       background: none;
@@ -26,6 +27,8 @@
       padding: 15px 20px;
       cursor: pointer;
       font-size: 1rem;
+      flex: 1 1 auto;
+      min-width: 100px;
     }
     nav button.active {
       background-color: #ff4655;
@@ -87,13 +90,14 @@
     .button-owned.green { background-color: #4caf50; }
     .button-alt { background-color: #333; }
 
-    input, select {
+    input, select, textarea {
       padding: 6px;
       margin-right: 10px;
       background: #1a1a1a;
       color: white;
       border: 1px solid #333;
       border-radius: 5px;
+      font-family: monospace;
     }
     .filters {
       margin: 20px 0;
@@ -105,11 +109,28 @@
 
     .view-controls {
       margin: 10px 0;
+      text-align: center;
     }
 
     .grid-container {
       display: flex;
       flex-wrap: wrap;
+    }
+
+    #importExportContainer {
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    #importTextarea {
+      width: 100%;
+      height: 150px;
+      margin-top: 10px;
+      background: #1a1a1a;
+      color: white;
+      border: 1px solid #333;
+      border-radius: 5px;
+      resize: vertical;
     }
   </style>
 </head>
@@ -119,6 +140,7 @@
     <button class="active" onclick="showTab(0)">Skins</button>
     <button onclick="showTab(1)">Priority List</button>
     <button onclick="showTab(2)">Collection</button>
+    <button onclick="showTab(3)">Settings</button>
   </nav>
 
   <!-- View Controls -->
@@ -168,6 +190,20 @@
     </div>
     <h2>Owned Skins</h2>
     <ul id="collectionList" style="list-style:none; padding:0;"></ul>
+  </div>
+
+  <!-- Tab 3: Settings -->
+  <div id="tab3" class="tab">
+    <h2>Settings - Import / Export Data</h2>
+    <div id="importExportContainer">
+      <button class="button" onclick="exportData()">Export Data</button>
+      <button class="button" onclick="clearData()" style="background:#bb2222;">Clear All Data</button>
+      <br /><br />
+      <textarea id="importTextarea" placeholder="Paste your exported JSON data here to import"></textarea>
+      <br />
+      <button class="button" onclick="importData()">Import Data</button>
+      <p id="importStatus" style="margin-top: 10px;"></p>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -380,6 +416,62 @@
     function changeGridSize() {
       gridSize = document.getElementById('gridSize').value;
       renderGallery();
+    }
+
+    // Import/Export functions
+    function exportData() {
+      const data = {
+        wishlist,
+        owned
+      };
+      const json = JSON.stringify(data, null, 2);
+      // Download as file:
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'valorant-skins-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importData() {
+      const textarea = document.getElementById('importTextarea');
+      const status = document.getElementById('importStatus');
+      try {
+        const data = JSON.parse(textarea.value);
+        if (!data.wishlist || !data.owned) {
+          status.style.color = 'orange';
+          status.textContent = 'Invalid data format. Expected "wishlist" and "owned" arrays.';
+          return;
+        }
+        if (!Array.isArray(data.wishlist) || !Array.isArray(data.owned)) {
+          status.style.color = 'orange';
+          status.textContent = '"wishlist" and "owned" should be arrays.';
+          return;
+        }
+        wishlist = data.wishlist;
+        owned = data.owned;
+        saveWishlist();
+        saveOwned();
+        status.style.color = 'lightgreen';
+        status.textContent = 'Data imported successfully!';
+        textarea.value = '';
+      } catch (e) {
+        status.style.color = 'orange';
+        status.textContent = 'Error parsing JSON data: ' + e.message;
+      }
+    }
+
+    function clearData() {
+      if (!confirm('Are you sure you want to clear all wishlist and owned skins? This cannot be undone.')) return;
+      wishlist = [];
+      owned = [];
+      saveWishlist();
+      saveOwned();
+      const status = document.getElementById('importStatus');
+      status.style.color = 'lightcoral';
+      status.textContent = 'All data cleared.';
     }
 
     document.getElementById('search').addEventListener('input', renderGallery);
