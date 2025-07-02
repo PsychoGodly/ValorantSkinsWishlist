@@ -72,6 +72,9 @@
       cursor: pointer;
       margin-left: 5px;
     }
+    .button-owned.green {
+      background-color: #4caf50;
+    }
     .button-alt {
       background-color: #333;
     }
@@ -210,6 +213,7 @@
       saveOwned();
     }
 
+    // Mark or unmark owned when clicking button in gallery
     function markAsOwned(skin) {
       const index = owned.findIndex(o => o.uuid === skin.uuid);
       if (index === -1) {
@@ -218,15 +222,24 @@
       } else {
         // Remove skin from owned
         owned.splice(index, 1);
+        // Also, if skin was purchased in wishlist, unmark purchased
+        wishlist = wishlist.map(s => s.uuid === skin.uuid ? { ...s, purchased: false } : s);
+        saveWishlist();
       }
       saveOwned();
-      renderGallery(); // To update button text
+      renderGallery(); // Update buttons text and color
     }
 
+    // Remove skin from owned collection (called from Collection tab remove button)
     function removeFromOwned(uuid) {
-      owned = owned.filter(s => s.uuid !== uuid);
-      saveOwned();
-      renderGallery();
+      const index = owned.findIndex(s => s.uuid === uuid);
+      if (index !== -1) {
+        owned.splice(index, 1);
+        // Also unmark purchased in wishlist if exists
+        wishlist = wishlist.map(s => s.uuid === uuid ? { ...s, purchased: false } : s);
+        saveWishlist();
+        saveOwned();
+      }
     }
 
     function renderWishlist() {
@@ -322,7 +335,6 @@
           const card = document.createElement('div');
           card.className = 'skin-card';
 
-          // Owned button text and color toggle
           const ownedButtonText = isOwned ? 'Owned' : 'Mark Owned';
           const ownedButtonClass = isOwned ? 'green' : '';
 
