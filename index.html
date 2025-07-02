@@ -10,10 +10,32 @@
       color: white;
       font-family: Arial, sans-serif;
       margin: 0;
-      padding: 20px;
     }
     h1, h2 {
       color: #ff4655;
+    }
+    nav {
+      display: flex;
+      background-color: #1a1a1a;
+      justify-content: center;
+    }
+    nav button {
+      background: none;
+      color: white;
+      border: none;
+      padding: 15px 20px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    nav button.active {
+      background-color: #ff4655;
+    }
+    .tab {
+      display: none;
+      padding: 20px;
+    }
+    .tab.active {
+      display: block;
     }
     .skin-card, .wishlist-item {
       background: #1a1a1a;
@@ -37,6 +59,9 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    .button.green {
+      background-color: green;
+    }
     .button-alt {
       background-color: #333;
     }
@@ -48,51 +73,79 @@
       border: 1px solid #333;
       border-radius: 5px;
     }
-    .filters, .wishlist {
-      margin-top: 30px;
+    .filters {
+      margin: 20px 0;
     }
   </style>
 </head>
 <body>
-  <h1>Valorant Skin Wishlist</h1>
+  <h1 style="text-align:center;">Valorant Skin Wishlist</h1>
+  <nav>
+    <button class="active" onclick="showTab(0)">Skins</button>
+    <button onclick="showTab(1)">Priority List</button>
+    <button onclick="showTab(2)">Battle Passes</button>
+  </nav>
 
-  <div class="filters">
-    <input id="search" placeholder="Search skins..." />
-    <select id="gunFilter">
-      <option value="">All Guns</option>
-      <option value="vandal">Vandal</option>
-      <option value="phantom">Phantom</option>
-      <option value="sheriff">Sheriff</option>
-    </select>
-    <select id="editionFilter">
-      <option value="">All Editions</option>
-      <option value="exclusive">Exclusive</option>
-      <option value="deluxe">Deluxe</option>
-      <option value="premium">Premium</option>
-    </select>
+  <div id="tab0" class="tab active">
+    <div class="filters">
+      <input id="search" placeholder="Search skins..." />
+      <select id="gunFilter"></select>
+      <select id="editionFilter"></select>
+    </div>
+    <div id="gallery"></div>
   </div>
 
-  <div id="gallery"></div>
-
-  <div class="wishlist">
+  <div id="tab1" class="tab">
+    <div class="filters">
+      <input id="search2" placeholder="Search wishlist..." />
+      <select id="gunFilter2"></select>
+      <select id="editionFilter2"></select>
+    </div>
     <h2>My Wishlist</h2>
     <div id="wishlist"></div>
   </div>
 
+  <div id="tab2" class="tab">
+    <h2>Battle Passes</h2>
+    <ul id="battlepasses"></ul>
+  </div>
+
   <script>
-    const API_URL = 'https://valorant-api.com/v1/weapons/skins';
+    const API_SKINS = 'https://valorant-api.com/v1/weapons/skins';
+    const API_BP = 'https://valorant-api.com/v1/contracts';
+
     const gallery = document.getElementById('gallery');
     const wishlistContainer = document.getElementById('wishlist');
-    const searchInput = document.getElementById('search');
-    const gunFilter = document.getElementById('gunFilter');
-    const editionFilter = document.getElementById('editionFilter');
+    const bpList = document.getElementById('battlepasses');
+
+    const filters = {
+      guns: ["All", "Classic", "Shorty", "Frenzy", "Ghost", "Sheriff", "Stinger", "Spectre", "Bucky", "Judge", "Bulldog", "Guardian", "Phantom", "Vandal", "Marshal", "Operator", "Ares", "Odin", "Knife"],
+      editions: ["All", "Select", "Deluxe", "Premium", "Exclusive", "Ultra"]
+    };
 
     let allSkins = [];
     let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
 
+    function populateFilters() {
+      const gunFilter = document.getElementById('gunFilter');
+      const gunFilter2 = document.getElementById('gunFilter2');
+      const editionFilter = document.getElementById('editionFilter');
+      const editionFilter2 = document.getElementById('editionFilter2');
+
+      filters.guns.forEach(gun => {
+        gunFilter.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+        gunFilter2.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+      });
+      filters.editions.forEach(ed => {
+        editionFilter.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
+        editionFilter2.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
+      });
+    }
+
     function saveWishlist() {
       localStorage.setItem('wishlist', JSON.stringify(wishlist));
       renderWishlist();
+      renderGallery();
     }
 
     function addToWishlist(skin) {
@@ -127,72 +180,112 @@
     }
 
     function renderWishlist() {
+      const search = document.getElementById('search2').value.toLowerCase();
+      const gun = document.getElementById('gunFilter2').value;
+      const edition = document.getElementById('editionFilter2').value;
+
       wishlistContainer.innerHTML = '';
-      wishlist.forEach((skin, i) => {
-        const item = document.createElement('div');
-        item.className = 'wishlist-item';
-        item.innerHTML = `
-          <div style="display: flex; gap: 10px; align-items: center">
-            <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
-            <div>
-              <strong>${skin.displayName}</strong><br/>
-              Priority #${i + 1}<br/>
-              ${skin.purchased ? '<em>(Purchased)</em>' : ''}
+      wishlist
+        .filter(s => s.displayName.toLowerCase().includes(search))
+        .filter(s => gun === 'all' || !gun ? true : s.displayName.toLowerCase().includes(gun))
+        .filter(s => edition === 'all' || !edition ? true : s.displayName.toLowerCase().includes(edition))
+        .forEach((skin, i) => {
+          const item = document.createElement('div');
+          item.className = 'wishlist-item';
+          item.innerHTML = `
+            <div style="display: flex; gap: 10px; align-items: center">
+              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
+              <div>
+                <strong>${skin.displayName}</strong><br/>
+                Priority #${i + 1}<br/>
+                ${skin.purchased ? '<em>(Purchased)</em>' : ''}
+              </div>
             </div>
-          </div>
-          <div>
-            <button class="button" onclick="togglePurchased('${skin.uuid}')">✔</button>
-            <button class="button-alt button" onclick="removeFromWishlist('${skin.uuid}')">🗑</button>
-            <button class="button-alt button" onclick="moveUp(${i})">↑</button>
-            <button class="button-alt button" onclick="moveDown(${i})">↓</button>
-          </div>
-        `;
-        wishlistContainer.appendChild(item);
-      });
+            <div>
+              <button class="button" onclick="togglePurchased('${skin.uuid}')">✔</button>
+              <button class="button-alt button" onclick="removeFromWishlist('${skin.uuid}')">🗑</button>
+              <button class="button-alt button" onclick="moveUp(${i})">↑</button>
+              <button class="button-alt button" onclick="moveDown(${i})">↓</button>
+            </div>
+          `;
+          wishlistContainer.appendChild(item);
+        });
     }
 
     function renderGallery() {
-      const search = searchInput.value.toLowerCase();
-      const gun = gunFilter.value;
-      const edition = editionFilter.value;
+      const search = document.getElementById('search').value.toLowerCase();
+      const gun = document.getElementById('gunFilter').value;
+      const edition = document.getElementById('editionFilter').value;
 
       gallery.innerHTML = '';
       allSkins
         .filter(skin => !skin.displayName.includes('Random'))
         .filter(skin => skin.displayName.toLowerCase().includes(search))
-        .filter(skin => gun ? skin.displayName.toLowerCase().includes(gun) : true)
-        .filter(skin => edition ? skin.displayName.toLowerCase().includes(edition) : true)
+        .filter(skin => gun === 'all' || !gun ? true : skin.displayName.toLowerCase().includes(gun))
+        .filter(skin => edition === 'all' || !edition ? true : skin.displayName.toLowerCase().includes(edition))
         .forEach(skin => {
+          const isInWishlist = wishlist.find(w => w.uuid === skin.uuid);
           const card = document.createElement('div');
           card.className = 'skin-card';
           card.innerHTML = `
             <div>
               <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
-              ${skin.displayName}
+              ${skin.displayName}<br/>
+              ${skin.contentTierUuid === null ? '<span style="color:yellow">Battle Pass Skin</span>' : ''}
             </div>
-            <button class="button" onclick='addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>+ Wishlist</button>
+            <button class="button ${isInWishlist ? 'green' : ''}" onclick='addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>${isInWishlist ? '✔ Added' : '+ Wishlist'}</button>
           `;
           gallery.appendChild(card);
         });
     }
 
-    fetch(API_URL)
+    function loadBattlePasses() {
+      fetch(API_BP)
+        .then(res => res.json())
+        .then(data => {
+          bpList.innerHTML = '';
+          data.data.forEach(pass => {
+            if (pass.type === 'EPISODE') return;
+            const li = document.createElement('li');
+            li.innerHTML = `${pass.displayName}`;
+            bpList.appendChild(li);
+          });
+        });
+    }
+
+    function showTab(i) {
+      document.querySelectorAll('.tab').forEach((tab, index) => {
+        tab.classList.toggle('active', i === index);
+      });
+      document.querySelectorAll('nav button').forEach((btn, index) => {
+        btn.classList.toggle('active', i === index);
+      });
+    }
+
+    document.getElementById('search').addEventListener('input', renderGallery);
+    document.getElementById('gunFilter').addEventListener('change', renderGallery);
+    document.getElementById('editionFilter').addEventListener('change', renderGallery);
+
+    document.getElementById('search2').addEventListener('input', renderWishlist);
+    document.getElementById('gunFilter2').addEventListener('change', renderWishlist);
+    document.getElementById('editionFilter2').addEventListener('change', renderWishlist);
+
+    fetch(API_SKINS)
       .then(res => res.json())
       .then(data => {
         allSkins = data.data;
+        populateFilters();
         renderGallery();
         renderWishlist();
+        loadBattlePasses();
       });
-
-    searchInput.addEventListener('input', renderGallery);
-    gunFilter.addEventListener('change', renderGallery);
-    editionFilter.addEventListener('change', renderGallery);
 
     window.addToWishlist = addToWishlist;
     window.removeFromWishlist = removeFromWishlist;
     window.togglePurchased = togglePurchased;
     window.moveUp = moveUp;
     window.moveDown = moveDown;
+    window.showTab = showTab;
   </script>
 </body>
 </html>
