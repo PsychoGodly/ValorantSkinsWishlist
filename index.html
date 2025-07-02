@@ -76,6 +76,10 @@
     .filters {
       margin: 20px 0;
     }
+    .drag-handle {
+      cursor: move;
+      margin-right: 10px;
+    }
   </style>
 </head>
 <body>
@@ -84,208 +88,294 @@
     <button class="active" onclick="showTab(0)">Skins</button>
     <button onclick="showTab(1)">Priority List</button>
     <button onclick="showTab(2)">Battle Passes</button>
+    <button onclick="showTab(3)">Collection</button>
   </nav>
 
+  <!-- TAB 0: Skins -->
   <div id="tab0" class="tab active">
     <div class="filters">
       <input id="search" placeholder="Search skins..." />
       <select id="gunFilter"></select>
       <select id="editionFilter"></select>
+      <select id="ownershipFilter">
+        <option value="all">All</option>
+        <option value="owned">Owned</option>
+        <option value="unowned">Unowned</option>
+      </select>
+      <label><input type="checkbox" id="battlepassFilter" /> Battle Pass only</label>
     </div>
     <div id="gallery"></div>
   </div>
-
+  <!-- TAB 1: Priority List -->
   <div id="tab1" class="tab">
     <div class="filters">
       <input id="search2" placeholder="Search wishlist..." />
       <select id="gunFilter2"></select>
       <select id="editionFilter2"></select>
+      <label><input type="checkbox" id="wishlistBattlepassFilter" /> Battle Pass only</label>
     </div>
-    <h2>My Wishlist</h2>
-    <div id="wishlist"></div>
+    <h2>My Wishlist (Drag to Reorder)</h2>
+    <ul id="wishlist" style="list-style:none; padding:0;"></ul>
   </div>
 
+  <!-- TAB 2: Battle Passes -->
   <div id="tab2" class="tab">
     <h2>Battle Passes</h2>
     <ul id="battlepasses"></ul>
+    <div id="bp-skins"></div>
   </div>
 
-  <script>
-    const API_SKINS = 'https://valorant-api.com/v1/weapons/skins';
-    const API_BP = 'https://valorant-api.com/v1/contracts';
+  <!-- TAB 3: Collection -->
+  <div id="tab3" class="tab">
+    <h2>Owned Skins</h2>
+    <ul id="collectionList" style="list-style:none; padding:0;"></ul>
+  </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script>
+const API_SKINS = 'https://valorant-api.com/v1/weapons/skins';
+const API_BP = 'https://valorant-api.com/v1/contracts';
 
-    const gallery = document.getElementById('gallery');
-    const wishlistContainer = document.getElementById('wishlist');
-    const bpList = document.getElementById('battlepasses');
+const gallery = document.getElementById('gallery');
+const wishlistContainer = document.getElementById('wishlist');
+const bpList = document.getElementById('battlepasses');
+const bpSkins = document.getElementById('bp-skins');
+const collectionList = document.getElementById('collectionList');
 
-    const filters = {
-      guns: ["All", "Classic", "Shorty", "Frenzy", "Ghost", "Sheriff", "Stinger", "Spectre", "Bucky", "Judge", "Bulldog", "Guardian", "Phantom", "Vandal", "Marshal", "Operator", "Ares", "Odin", "Knife"],
-      editions: ["All", "Select", "Deluxe", "Premium", "Exclusive", "Ultra"]
-    };
+let allSkins = [];
+let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
+let owned = JSON.parse(localStorage.getItem('owned')) || [];
 
-    let allSkins = [];
-    let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
+const filters = {
+  guns: ["All", "Classic", "Shorty", "Frenzy", "Ghost", "Sheriff", "Stinger", "Spectre", "Bucky", "Judge", "Bulldog", "Guardian", "Phantom", "Vandal", "Marshal", "Operator", "Ares", "Odin", "Knife"],
+  editions: ["All", "Select", "Deluxe", "Premium", "Exclusive", "Ultra"]
+};
 
-    function populateFilters() {
-      const gunFilter = document.getElementById('gunFilter');
-      const gunFilter2 = document.getElementById('gunFilter2');
-      const editionFilter = document.getElementById('editionFilter');
-      const editionFilter2 = document.getElementById('editionFilter2');
+function populateFilters() {
+  const gunFilter = document.getElementById('gunFilter');
+  const gunFilter2 = document.getElementById('gunFilter2');
+  const editionFilter = document.getElementById('editionFilter');
+  const editionFilter2 = document.getElementById('editionFilter2');
 
-      filters.guns.forEach(gun => {
-        gunFilter.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
-        gunFilter2.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
-      });
-      filters.editions.forEach(ed => {
-        editionFilter.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
-        editionFilter2.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
-      });
-    }
+  filters.guns.forEach(gun => {
+    gunFilter.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+    gunFilter2.innerHTML += `<option value="${gun.toLowerCase()}">${gun}</option>`;
+  });
+  filters.editions.forEach(ed => {
+    editionFilter.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
+    editionFilter2.innerHTML += `<option value="${ed.toLowerCase()}">${ed}</option>`;
+  });
+}
 
-    function saveWishlist() {
-      localStorage.setItem('wishlist', JSON.stringify(wishlist));
-      renderWishlist();
-      renderGallery();
-    }
+function saveWishlist() {
+  localStorage.setItem('wishlist', JSON.stringify(wishlist));
+  renderWishlist();
+  renderGallery();
+}
 
-    function addToWishlist(skin) {
-      if (!wishlist.find(w => w.uuid === skin.uuid)) {
-        wishlist.push({ ...skin, purchased: false });
-        saveWishlist();
-      }
-    }
+function saveOwned() {
+  localStorage.setItem('owned', JSON.stringify(owned));
+  renderCollection();
+  renderGallery();
+}
 
-    function removeFromWishlist(uuid) {
-      wishlist = wishlist.filter(s => s.uuid !== uuid);
+function addToWishlist(skin) {
+  if (!wishlist.find(w => w.uuid === skin.uuid)) {
+    wishlist.push({ ...skin, purchased: false });
+    saveWishlist();
+  }
+}
+
+function removeFromWishlist(uuid) {
+  wishlist = wishlist.filter(s => s.uuid !== uuid);
+  saveWishlist();
+}
+
+function togglePurchased(uuid) {
+  wishlist = wishlist.map(s => s.uuid === uuid ? { ...s, purchased: !s.purchased } : s);
+  saveWishlist();
+}
+
+function markAsOwned(skin) {
+  if (!owned.find(o => o.uuid === skin.uuid)) {
+    owned.push(skin);
+    saveOwned();
+  }
+}
+
+function renderWishlist() {
+  const search = document.getElementById('search2').value.toLowerCase();
+  const gun = document.getElementById('gunFilter2').value;
+  const edition = document.getElementById('editionFilter2').value;
+  const onlyBP = document.getElementById('wishlistBattlepassFilter').checked;
+
+  wishlistContainer.innerHTML = '';
+  wishlist
+    .filter(s => s.displayName.toLowerCase().includes(search))
+    .filter(s => gun === 'all' || !gun ? true : s.displayName.toLowerCase().includes(gun))
+    .filter(s => edition === 'all' || !edition ? true : s.displayName.toLowerCase().includes(edition))
+    .filter(s => onlyBP ? s.contentTierUuid === null : true)
+    .forEach((skin, i) => {
+      const item = document.createElement('li');
+      item.className = 'wishlist-item';
+      item.setAttribute('data-id', skin.uuid);
+      item.innerHTML = `
+        <div style="display: flex; gap: 10px; align-items: center">
+          <span class="drag-handle">☰</span>
+          <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
+          <div>
+            <strong>${skin.displayName}</strong><br/>
+            ${skin.purchased ? '<em>(Purchased)</em>' : ''}
+          </div>
+        </div>
+        <div>
+          <button class="button" onclick="togglePurchased('${skin.uuid}')">✔</button>
+          <button class="button-alt button" onclick="removeFromWishlist('${skin.uuid}')">🗑</button>
+        </div>
+      `;
+      wishlistContainer.appendChild(item);
+    });
+
+  new Sortable(wishlistContainer, {
+    animation: 150,
+    handle: '.drag-handle',
+    onEnd: () => {
+      const newOrder = Array.from(wishlistContainer.children).map(el =>
+        wishlist.find(w => w.uuid === el.dataset.id)
+      );
+      wishlist = newOrder;
       saveWishlist();
     }
+  });
+}
 
-    function togglePurchased(uuid) {
-      wishlist = wishlist.map(s => s.uuid === uuid ? { ...s, purchased: !s.purchased } : s);
-      saveWishlist();
-    }
+function renderCollection() {
+  collectionList.innerHTML = '';
+  owned.forEach(skin => {
+    const li = document.createElement('li');
+    li.className = 'skin-card';
+    li.innerHTML = `
+      <div>
+        <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
+        ${skin.displayName}
+      </div>
+    `;
+    collectionList.appendChild(li);
+  });
+}
 
-    function moveUp(index) {
-      if (index > 0) {
-        [wishlist[index - 1], wishlist[index]] = [wishlist[index], wishlist[index - 1]];
-        saveWishlist();
+function renderGallery() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const gun = document.getElementById('gunFilter').value;
+  const edition = document.getElementById('editionFilter').value;
+  const ownership = document.getElementById('ownershipFilter').value;
+  const onlyBP = document.getElementById('battlepassFilter').checked;
+
+  gallery.innerHTML = '';
+  allSkins
+    .filter(skin => !skin.displayName.includes('Random'))
+    .filter(skin => skin.displayName.toLowerCase().includes(search))
+    .filter(skin => gun === 'all' || !gun ? true : skin.displayName.toLowerCase().includes(gun))
+    .filter(skin => edition === 'all' || !edition ? true : skin.displayName.toLowerCase().includes(edition))
+    .filter(skin => onlyBP ? skin.contentTierUuid === null : true)
+    .filter(skin => {
+      if (ownership === 'owned') return owned.find(o => o.uuid === skin.uuid);
+      if (ownership === 'unowned') return !owned.find(o => o.uuid === skin.uuid);
+      return true;
+    })
+    .forEach(skin => {
+      const isInWishlist = wishlist.find(w => w.uuid === skin.uuid);
+      const isOwned = owned.find(o => o.uuid === skin.uuid);
+      const card = document.createElement('div');
+      card.className = 'skin-card';
+      card.innerHTML = `
+        <div>
+          <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
+          ${skin.displayName}<br/>
+          ${skin.contentTierUuid === null ? '<span style="color:yellow">Battle Pass Skin</span>' : ''}
+        </div>
+        <div>
+          <button class="button ${isInWishlist ? 'green' : ''}" onclick='${isInWishlist ? `removeFromWishlist(\"${skin.uuid}\")` : `addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})`}'>${isInWishlist ? '✔ Added' : '+ Wishlist'}</button>
+          <button class="button-alt" onclick='markAsOwned(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>🎯 Mark Owned</button>
+        </div>
+      `;
+      gallery.appendChild(card);
+    });
+}
+function loadBattlePasses() {
+  fetch(API_BP)
+    .then(res => res.json())
+    .then(data => {
+      bpList.innerHTML = '';
+      const contracts = data.data.filter(p => p.type !== 'EPISODE');
+      contracts.forEach(pass => {
+        const li = document.createElement('li');
+        li.innerHTML = `<button class="button-alt" onclick="showBPSkins('${pass.uuid}')">${pass.displayName}</button>`;
+        bpList.appendChild(li);
+      });
+    });
+}
+
+function showBPSkins(uuid) {
+  fetch(API_BP)
+    .then(res => res.json())
+    .then(data => {
+      const pass = data.data.find(p => p.uuid === uuid);
+      bpSkins.innerHTML = `<h3>${pass.displayName} Skins</h3>`;
+      const skins = pass.content.rewards.filter(item => item.type === 'Spray' || item.type === 'EquippableSkin');
+      if (!skins.length) {
+        bpSkins.innerHTML += "<p>No skin data available.</p>";
+        return;
       }
-    }
 
-    function moveDown(index) {
-      if (index < wishlist.length - 1) {
-        [wishlist[index + 1], wishlist[index]] = [wishlist[index], wishlist[index + 1]];
-        saveWishlist();
-      }
-    }
-
-    function renderWishlist() {
-      const search = document.getElementById('search2').value.toLowerCase();
-      const gun = document.getElementById('gunFilter2').value;
-      const edition = document.getElementById('editionFilter2').value;
-
-      wishlistContainer.innerHTML = '';
-      wishlist
-        .filter(s => s.displayName.toLowerCase().includes(search))
-        .filter(s => gun === 'all' || !gun ? true : s.displayName.toLowerCase().includes(gun))
-        .filter(s => edition === 'all' || !edition ? true : s.displayName.toLowerCase().includes(edition))
-        .forEach((skin, i) => {
-          const item = document.createElement('div');
-          item.className = 'wishlist-item';
-          item.innerHTML = `
-            <div style="display: flex; gap: 10px; align-items: center">
-              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" />
-              <div>
-                <strong>${skin.displayName}</strong><br/>
-                Priority #${i + 1}<br/>
-                ${skin.purchased ? '<em>(Purchased)</em>' : ''}
-              </div>
-            </div>
-            <div>
-              <button class="button" onclick="togglePurchased('${skin.uuid}')">✔</button>
-              <button class="button-alt button" onclick="removeFromWishlist('${skin.uuid}')">🗑</button>
-              <button class="button-alt button" onclick="moveUp(${i})">↑</button>
-              <button class="button-alt button" onclick="moveDown(${i})">↓</button>
-            </div>
-          `;
-          wishlistContainer.appendChild(item);
-        });
-    }
-
-    function renderGallery() {
-      const search = document.getElementById('search').value.toLowerCase();
-      const gun = document.getElementById('gunFilter').value;
-      const edition = document.getElementById('editionFilter').value;
-
-      gallery.innerHTML = '';
-      allSkins
-        .filter(skin => !skin.displayName.includes('Random'))
-        .filter(skin => skin.displayName.toLowerCase().includes(search))
-        .filter(skin => gun === 'all' || !gun ? true : skin.displayName.toLowerCase().includes(gun))
-        .filter(skin => edition === 'all' || !edition ? true : skin.displayName.toLowerCase().includes(edition))
-        .forEach(skin => {
-          const isInWishlist = wishlist.find(w => w.uuid === skin.uuid);
-          const card = document.createElement('div');
-          card.className = 'skin-card';
-          card.innerHTML = `
-            <div>
-              <img src="${skin.displayIcon || skin.chromas?.[0]?.fullRender || ''}" /><br/>
-              ${skin.displayName}<br/>
-              ${skin.contentTierUuid === null ? '<span style="color:yellow">Battle Pass Skin</span>' : ''}
-            </div>
-            <button class="button ${isInWishlist ? 'green' : ''}" onclick='addToWishlist(${JSON.stringify(skin).replace(/'/g, "&apos;")})'>${isInWishlist ? '✔ Added' : '+ Wishlist'}</button>
-          `;
-          gallery.appendChild(card);
-        });
-    }
-
-    function loadBattlePasses() {
-      fetch(API_BP)
-        .then(res => res.json())
-        .then(data => {
-          bpList.innerHTML = '';
-          data.data.forEach(pass => {
-            if (pass.type === 'EPISODE') return;
-            const li = document.createElement('li');
-            li.innerHTML = `${pass.displayName}`;
-            bpList.appendChild(li);
-          });
-        });
-    }
-
-    function showTab(i) {
-      document.querySelectorAll('.tab').forEach((tab, index) => {
-        tab.classList.toggle('active', i === index);
+      skins.forEach(skin => {
+        bpSkins.innerHTML += `
+          <div class="skin-card">
+            <div>${skin.displayName || "Unnamed"} <br><em>${skin.type}</em></div>
+          </div>
+        `;
       });
-      document.querySelectorAll('nav button').forEach((btn, index) => {
-        btn.classList.toggle('active', i === index);
-      });
-    }
+    });
+}
 
-    document.getElementById('search').addEventListener('input', renderGallery);
-    document.getElementById('gunFilter').addEventListener('change', renderGallery);
-    document.getElementById('editionFilter').addEventListener('change', renderGallery);
+function showTab(i) {
+  document.querySelectorAll('.tab').forEach((tab, index) => {
+    tab.classList.toggle('active', i === index);
+  });
+  document.querySelectorAll('nav button').forEach((btn, index) => {
+    btn.classList.toggle('active', i === index);
+  });
+}
 
-    document.getElementById('search2').addEventListener('input', renderWishlist);
-    document.getElementById('gunFilter2').addEventListener('change', renderWishlist);
-    document.getElementById('editionFilter2').addEventListener('change', renderWishlist);
+document.getElementById('search').addEventListener('input', renderGallery);
+document.getElementById('gunFilter').addEventListener('change', renderGallery);
+document.getElementById('editionFilter').addEventListener('change', renderGallery);
+document.getElementById('ownershipFilter').addEventListener('change', renderGallery);
+document.getElementById('battlepassFilter').addEventListener('change', renderGallery);
 
-    fetch(API_SKINS)
-      .then(res => res.json())
-      .then(data => {
-        allSkins = data.data;
-        populateFilters();
-        renderGallery();
-        renderWishlist();
-        loadBattlePasses();
-      });
+document.getElementById('search2').addEventListener('input', renderWishlist);
+document.getElementById('gunFilter2').addEventListener('change', renderWishlist);
+document.getElementById('editionFilter2').addEventListener('change', renderWishlist);
+document.getElementById('wishlistBattlepassFilter').addEventListener('change', renderWishlist);
 
-    window.addToWishlist = addToWishlist;
-    window.removeFromWishlist = removeFromWishlist;
-    window.togglePurchased = togglePurchased;
-    window.moveUp = moveUp;
-    window.moveDown = moveDown;
-    window.showTab = showTab;
-  </script>
+// Load everything
+fetch(API_SKINS)
+  .then(res => res.json())
+  .then(data => {
+    allSkins = data.data;
+    populateFilters();
+    renderGallery();
+    renderWishlist();
+    renderCollection();
+    loadBattlePasses();
+  });
+
+// Make global
+window.addToWishlist = addToWishlist;
+window.removeFromWishlist = removeFromWishlist;
+window.togglePurchased = togglePurchased;
+window.markAsOwned = markAsOwned;
+window.showTab = showTab;
+window.showBPSkins = showBPSkins;
+</script>
 </body>
 </html>
