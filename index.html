@@ -199,9 +199,10 @@
       <button class="button" onclick="exportData()">Export Data</button>
       <button class="button" onclick="clearData()" style="background:#bb2222;">Clear All Data</button>
       <br /><br />
-      <textarea id="importTextarea" placeholder="Paste your exported JSON data here to import"></textarea>
-      <br />
-      <button class="button" onclick="importData()">Import Data</button>
+<input type="file" id="importFile" accept=".json" />
+<br /><br />
+<button class="button" onclick="importFromFile()">Import from File</button>
+
       <p id="importStatus" style="margin-top: 10px;"></p>
     </div>
   </div>
